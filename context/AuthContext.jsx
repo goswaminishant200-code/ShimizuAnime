@@ -19,6 +19,10 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
+    const interval = setInterval(() => {
+      if (user) loadProfile(user.id)
+    }, 60000)
+    return () => clearInterval(interval)
       const u = data.session?.user ?? null
       setUser(u)
       if (u) loadProfile(u.id)
