@@ -1,14 +1,8 @@
 {
   "compilerOptions": {
-    "target": "es5",
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "allowJs": true,
-    "checkJs": false,
     "baseUrl": ".",
-    "moduleResolution": "node",
     "paths": {
       "@/*": ["./*"]
     }
-  },
-  "exclude": ["node_modules"]
+  }
 }
