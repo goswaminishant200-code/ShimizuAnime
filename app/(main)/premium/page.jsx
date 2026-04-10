@@ -38,13 +38,13 @@ export default function PremiumPage() {
             <div className="mt-4 mb-1"><h2 className="text-xl font-bold text-shim-text">Premium</h2></div>
             <p className="text-shim-muted text-sm mb-4">Admin-granted full access</p>
             <div className="mb-6">
-              <span className="text-4xl font-bold gradient-text">FREE*</span>
-              <p className="text-xs text-shim-muted mt-1">*No payment — admin grants access</p>
+              <span className="text-4xl font-bold gradient-text">₹20*</span>
+              <p className="text-xs text-shim-muted mt-1">*Payment — Telegram/Discord Only</p>
             </div>
             <ul className="space-y-3 mb-8">
               {PRO.map(f=><li key={f} className="flex items-center gap-3 text-sm text-shim-text"><span className="text-shim-gold flex-shrink-0">⭐</span>{f}</li>)}
             </ul>
-            <a href="https://discord.gg/shimyanime" target="_blank" rel="noopener noreferrer" className="btn-primary w-full text-center block py-3">Request Premium Access</a>
+            <a href="https://discord.gg/42B3KghktF" target="_blank" rel="noopener noreferrer" className="btn-primary w-full text-center block py-3">Request Premium Access</a>
           </div>
         </div>
 
@@ -53,7 +53,7 @@ export default function PremiumPage() {
           <h2 className="text-2xl font-bold text-shim-text mb-8">How to Get Premium</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
             {[
-              {n:'01',title:'Create Account', desc:'Register a free ShimuAnime account',icon:'👤'},
+              {n:'01',title:'Create Account', desc:'Register a free ShimuAnime account',icon:''},
               {n:'02',title:'Contact Admin',  desc:'Join our Discord or DM an admin',icon:'💬'},
               {n:'03',title:'Get Access',     desc:'Admin reviews and grants premium',icon:'✅'},
             ].map(s=>(
