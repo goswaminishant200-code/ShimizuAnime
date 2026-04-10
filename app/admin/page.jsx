@@ -44,7 +44,9 @@ export default function AdminPage() {
   const [newsForm,setNewsForm]=useState({title:'',content:'',image_url:'',category:'General'})
 
   useEffect(()=>{ if (!loading&&(!user||!isAdmin)) { toast.error('Admins only'); router.push('/') } },[user,isAdmin,loading])
-  useEffect(()=>{ if (isAdmin) { load(); loadAnns(); loadNews() } },[isAdmin])
+useEffect(()=>{
+  if (!loading && isAdmin) { load(); loadAnns(); loadNews() }
+},[isAdmin, loading])
 
   const load = async () => { setULoad(true); setUsers(await getAllProfiles().catch(()=>[])); setULoad(false) }
   const loadAnns = async () => setAnns(await getAnnouncements().catch(()=>[]))
