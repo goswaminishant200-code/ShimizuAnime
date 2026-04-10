@@ -3,7 +3,7 @@ import Footer from '@/components/Footer'
 import Link from 'next/link'
 
 const FREE = ['Browse 10,000+ anime','Watch Episodes 1–3','Standard quality','Watchlist','Search & filters','Anime news']
-const PRO  = ['Unlimited episodes','HD quality','Sub & Dub toggle','Unlimited watchlist','Download history','Comments & ratings','MAL / AniList link','Premium badge on profile','Priority access to new anime']
+const PRO  = ['Unlimited episodes','HD quality','Sub & Dub toggle','Unlimited watchlist','Download history','Comments & ratings','Premium badge on profile','Priority access to new anime']
 
 export default function PremiumPage() {
   return (
