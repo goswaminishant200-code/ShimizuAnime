@@ -1,4 +1,5 @@
 'use client'
+import { useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import Navbar from '@/components/Navbar'
@@ -9,7 +10,12 @@ import toast from 'react-hot-toast'
 export default function WatchPage() {
   const params   = useParams()
   const sp       = useSearchParams()
-  const { user, isPremium } = useAuth()
+  const { user, isPremium, loading: authLoading } = useAuth()
+  const router = useRouter()
+
+useEffect(() => {
+  if (!authLoading && !user) router.push('/login')
+}, [user, authLoading, router])
   const id  = params.id
   const ep  = sp.get('ep') || '1'
 
