@@ -154,11 +154,11 @@ export default function ProfilePage() {
 
               {/* Actions */}
               <div className="flex items-center gap-2 flex-shrink-0">
-                {profile?.mal_link && (
+                {profile?.Anime_List && (
                   <a href={profile.Anime_List} target="_blank" rel="noopener noreferrer"
                     className="px-3 py-1.5 rounded-lg border border-blue-500/30 text-blue-400 text-xs hover:bg-blue-500/10 transition-all">MAL ↗</a>
                 )}
-                {profile?.anilist_link && (
+                {profile?.Anime_Profile && (
                   <a href={profile.Anime_Profile} target="_blank" rel="noopener noreferrer"
                     className="px-3 py-1.5 rounded-lg border border-shim-primary/30 text-shim-accent text-xs hover:bg-shim-primary/10 transition-all">AniList ↗</a>
                 )}
