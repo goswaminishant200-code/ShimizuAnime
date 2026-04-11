@@ -11,26 +11,25 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  const loadProfile = async (uid) => {
-    const p = await getProfile(uid)
-    if (p?.banned) { await logoutUser(); toast.error('Account banned.'); setUser(null); setProfile(null); return }
-    setProfile(p)
+const loadProfile = async (uid) => {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', uid)
+      .single()
+    if (error) { console.error('Profile fetch error:', error); return }
+    if (data?.banned) {
+      await supabase.auth.signOut()
+      setUser(null)
+      setProfile(null)
+      return
+    }
+    setProfile(data)
+  } catch(e) {
+    console.error('loadProfile exception:', e)
   }
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      const u = data.session?.user ?? null
-      setUser(u)
-      if (u) loadProfile(u.id)
-      setLoading(false)
-    })
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      const u = session?.user ?? null
-      setUser(u)
-      if (u) loadProfile(u.id); else setProfile(null)
-    })
-    return () => sub.subscription.unsubscribe()
-  }, [])
+}
 
   const register = async (email, password, displayName) => {
     await registerUser(email, password, displayName)
