@@ -117,7 +117,7 @@ export default function WatchPage() {
                   </button>
                 ))}
                 <span className="text-xs text-shim-muted ml-2">
-                  Agar ek server kaam na kare toh doosra try karo
+                  If Currebt Server Is Not Working then try another Server.
                 </span>
               </div>
 
