@@ -3,6 +3,8 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
+useEffect(() => { if (!loading && !user) router.push('/login') }, [user, loading])
+  
 const Ctx = createContext(null)
 
 export function AuthProvider({ children }) {
@@ -10,25 +12,26 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  const loadProfile = async (uid) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', uid)
-        .single()
-      if (error) { console.error('Profile fetch error:', error); return }
-      if (data?.banned) {
-        await supabase.auth.signOut()
-        toast.error('Account banned.')
-        setUser(null); setProfile(null)
-        return
-      }
-      setProfile(data)
-    } catch(e) {
-      console.error('loadProfile exception:', e)
+const loadProfile = async (uid) => {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', uid)
+      .single()
+    if (error) { console.error('Profile fetch error:', error); return }
+    if (data?.banned) {
+      await supabase.auth.signOut()
+      setUser(null)
+      setProfile(null)
+      window.location.href = '/login?banned=true'
+      return
     }
+    setProfile(data)
+  } catch(e) {
+    console.error('loadProfile exception:', e)
   }
+}
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
