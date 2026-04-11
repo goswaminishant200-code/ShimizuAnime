@@ -1,45 +1,20 @@
-import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
 import { NextResponse } from 'next/server'
 
 export async function middleware(req) {
-  const res  = NextResponse.next()
-  const supabase = createMiddlewareClient({ req, res })
-
-  const { data: { session } } = await supabase.auth.getSession()
-
   const path = req.nextUrl.pathname
 
-  // Yeh pages bina login ke nahi dekh sakte
-  const protectedRoutes = ['/profile', '/admin', '/watch']
+  // Protected routes check
+  const needsLogin = ['/profile', '/admin', '/watch'].some(r => path.startsWith(r))
 
-  const isProtected = protectedRoutes.some(r => path.startsWith(r))
+  // Supabase session cookie check
+  const token = req.cookies.get('sb-access-token')?.value ||
+    req.cookies.get(`sb-${process.env.NEXT_PUBLIC_SUPABASE_URL?.split('//')[1]?.split('.')[0]}-auth-token`)?.value
 
-  // Login nahi hai aur protected route pe ja raha hai
-  if (isProtected && !session) {
+  if (needsLogin && !token) {
     return NextResponse.redirect(new URL('/login', req.url))
   }
 
-  // Login hai — ban check karo
-  if (session) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('banned, role')
-      .eq('id', session.user.id)
-      .single()
-
-    // Admin route — sirf admin ja sakta hai
-    if (path.startsWith('/admin') && profile?.role !== 'admin') {
-      return NextResponse.redirect(new URL('/', req.url))
-    }
-
-    // Banned user — logout karke login page par bhejo
-    if (profile?.banned) {
-      await supabase.auth.signOut()
-      return NextResponse.redirect(new URL('/login?banned=true', req.url))
-    }
-  }
-
-  return res
+  return NextResponse.next()
 }
 
 export const config = {
