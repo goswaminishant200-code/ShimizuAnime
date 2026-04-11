@@ -1,10 +1,10 @@
 'use client'
+import { useSearchParams } from 'next/navigation'
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import toast from 'react-hot-toast'
-import { useSearchParams } from 'next/navigation'
 
 const Logo = () => (
   <svg viewBox="0 0 32 32" className="w-10 h-10" fill="none">
@@ -92,3 +92,18 @@ export default function LoginPage() {
     </div>
   )
 }
+import { Suspense } from 'react'
+
+// Poora LoginPage component ko LoginForm rename karo
+function LoginForm() {
+  // ... existing code
+}
+
+// Naya default export
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-shim-bg" />}>
+      <LoginForm />
+    </Suspense>
+  )
+}git
