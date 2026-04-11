@@ -8,8 +8,6 @@ import { useAuth } from '@/context/AuthContext'
 import { getWatchlist, getDownloads, updateProfile } from '@/lib/db'
 import toast from 'react-hot-toast'
 import AuthGuard from '@/components/AuthGuard'
-// return ke andar wrap karo:
-return <AuthGuard>{/* existing content */}</AuthGuard>
 const TABS = ['Watchlist','Downloads','Settings']
 
 export default function ProfilePage() {

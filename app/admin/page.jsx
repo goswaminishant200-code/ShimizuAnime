@@ -30,7 +30,6 @@ const Btn = ({ label, color, busy, onClick }) => {
     </button>
   )
 }
-return <AuthGuard adminOnly={true}>{/* existing content */}</AuthGuard>
 export default function AdminPage() {
   const { user, profile, loading } = useAuth()
   const router = useRouter()
