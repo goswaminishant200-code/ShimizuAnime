@@ -5,19 +5,10 @@ import Navbar from '@/components/Navbar'
 import Link from 'next/link'
 import { useAuth } from '@/context/AuthContext'
 
-const SERVERS = [
-  {
-    name: 'HiAnime',
-    label: 'BEST',
-    getUrl: (id, ep, mode) =>
-      `https://hianime.to/watch/${id}?ep=${ep}`,
-  },
-  {
-    name: 'GogoAnime',
-    label: 'DUB/SUB',
-    getUrl: (id, ep, mode) =>
-      `https://gogoanime3.co/play/${id}-episode-${ep}`,
-  },
+const PROVIDERS = [
+  { name: 'GogoAnime',  url: `https://gogoanime3.co/play/${slug}-episode-${ep}` },
+  { name: 'Zoro/HiAnime', url: `https://hianime.to/watch/${slug}?ep=${ep}` },
+  { name: 'AnimeOwl',  url: `https://animeowl.me/anime/${slug}/episode-${ep}` },
 ]
 
 export default function WatchPage() {
