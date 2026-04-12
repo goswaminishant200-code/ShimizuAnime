@@ -7,28 +7,16 @@ import { useAuth } from '@/context/AuthContext'
 
 const SERVERS = [
   {
-    name: 'VidPlus',
+    name: 'HiAnime',
     label: 'BEST',
     getUrl: (id, ep, mode) =>
-      `https://player.vidplus.to/embed/anime/${id}/${ep}?dub=${mode === 'dub' ? 'true' : 'false'}&primarycolor=c8446a&secondarycolor=9b3055`,
+      `https://hianime.to/watch/${id}?ep=${ep}`,
   },
   {
-    name: 'VidSrc',
-    label: 'HD',
+    name: 'GogoAnime',
+    label: 'DUB/SUB',
     getUrl: (id, ep, mode) =>
-      `https://vidsrc.xyz/embed/anime?mal=${id}&ep=${ep}`,
-  },
-  {
-    name: 'Embed',
-    label: 'MULTI',
-    getUrl: (id, ep, mode) =>
-      `https://www.2embed.stream/embed/anime/${id}/${ep}`,
-  },
-  {
-    name: 'Backup',
-    label: 'SUB',
-    getUrl: (id, ep, mode) =>
-      `https://embtaku.pro/streaming.php?id=${id}-episode-${ep}&type=${mode === 'dub' ? '1' : '0'}`,
+      `https://gogoanime3.co/play/${id}-episode-${ep}`,
   },
 ]
 
