@@ -5,10 +5,26 @@ import Navbar from '@/components/Navbar'
 import Link from 'next/link'
 import { useAuth } from '@/context/AuthContext'
 
-const PROVIDERS = [
-  { name: 'GogoAnime',  url: `https://gogoanime3.co/play/${slug}-episode-${ep}` },
-  { name: 'Zoro/HiAnime', url: `https://hianime.to/watch/${slug}?ep=${ep}` },
-  { name: 'AnimeOwl',  url: `https://animeowl.me/anime/${slug}/episode-${ep}` },
+// SERVERS array replace karo yeh se:
+const SERVERS = [
+  {
+    name: 'Muse Asia',
+    label: 'SUB',
+    getUrl: (id, ep, title) =>
+      `https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(title + ' episode ' + ep + ' official muse asia')}&autoplay=1`,
+  },
+  {
+    name: 'Ani-One',
+    label: 'SUB',
+    getUrl: (id, ep, title) =>
+      `https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(title + ' episode ' + ep + ' ani-one official')}&autoplay=1`,
+  },
+  {
+    name: 'Funimation',
+    label: 'DUB',
+    getUrl: (id, ep, title) =>
+      `https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(title + ' english dub episode ' + ep + ' official')}&autoplay=1`,
+  },
 ]
 
 export default function WatchPage() {
