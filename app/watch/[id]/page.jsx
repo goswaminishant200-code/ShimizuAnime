@@ -4,43 +4,22 @@ import { useParams, useSearchParams } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Link from 'next/link'
 import { useAuth } from '@/context/AuthContext'
-
-// SERVERS array replace karo yeh se:
-const SERVERS = [
-  {
-    name: 'Muse Asia',
-    label: 'SUB',
-    getUrl: (id, ep, title) =>
-      `https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(title + ' episode ' + ep + ' official muse asia')}&autoplay=1`,
-  },
-  {
-    name: 'Ani-One',
-    label: 'SUB',
-    getUrl: (id, ep, title) =>
-      `https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(title + ' episode ' + ep + ' ani-one official')}&autoplay=1`,
-  },
-  {
-    name: 'Funimation',
-    label: 'DUB',
-    getUrl: (id, ep, title) =>
-      `https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(title + ' english dub episode ' + ep + ' official')}&autoplay=1`,
-  },
-]
+import { supabase } from '@/lib/supabase'
 
 export default function WatchPage() {
-  const params       = useParams()
-  const sp           = useSearchParams()
-  const { user, isPremium, loading: authLoading } = useAuth()
+  const params = useParams()
+  const sp = useSearchParams()
+  const { isPremium } = useAuth()
 
-  const id  = params.id
-  const ep  = sp.get('ep') || '1'
+  const id = params.id
+  const ep = sp.get('ep') || '1'
 
-  const [anime,    setAnime]    = useState(null)
-  const [episodes, setEpisodes] = useState([])
-  const [mode,     setMode]     = useState('sub')
-  const [server,   setServer]   = useState(0)
-  const [loading,  setLoading]  = useState(true)
-  const [epPage,   setEpPage]   = useState(1)
+  const [anime,      setAnime]      = useState(null)
+  const [episodes,   setEpisodes]   = useState([])
+  const [dbEpisodes, setDbEpisodes] = useState([])
+  const [mode,       setMode]       = useState('sub')
+  const [loading,    setLoading]    = useState(true)
+  const [epPage,     setEpPage]     = useState(1)
   const EPP = 50
 
   useEffect(() => {
@@ -48,19 +27,30 @@ export default function WatchPage() {
     Promise.all([
       fetch(`https://api.jikan.moe/v4/anime/${id}`).then(r => r.json()),
       fetch(`https://api.jikan.moe/v4/anime/${id}/episodes`).then(r => r.json()),
-    ]).then(([a, e]) => {
+      supabase.from('episodes').select('*').eq('anime_id', id).order('episode_num'),
+    ]).then(([a, e, { data: dbEps }]) => {
       setAnime(a.data)
       setEpisodes(e.data || [])
+      setDbEpisodes(dbEps || [])
     }).catch(() => {}).finally(() => setLoading(false))
   }, [id])
 
   const title    = anime?.title_english || anime?.title || 'Loading...'
-  const pagedEps = episodes.slice((epPage - 1) * EPP, epPage * EPP)
-  const totalPgs = Math.ceil(episodes.length / EPP)
   const epInt    = parseInt(ep)
   const isLocked = !isPremium && epInt > 3
+  const pagedEps = episodes.slice((epPage - 1) * EPP, epPage * EPP)
+  const totalPgs = Math.ceil(episodes.length / EPP)
 
-  const iframeSrc = "https://voe.sx/e/pobhnawfze2s"
+  // Current episode ka embed URL Supabase se
+  const currentDbEp = dbEpisodes.find(
+    e => e.episode_num === epInt && e.language === mode
+  )
+  const embedUrl = currentDbEp?.embed_url || null
+
+  // Available languages for current episode
+  const availableLangs = [...new Set(
+    dbEpisodes.filter(e => e.episode_num === epInt).map(e => e.language)
+  )]
 
   return (
     <div className="min-h-screen bg-shim-bg">
@@ -70,90 +60,75 @@ export default function WatchPage() {
 
           {/* Breadcrumb */}
           <div className="flex items-center gap-2 text-xs text-shim-muted mb-4 flex-wrap">
-            <Link href="/" className="hover:text-shim-text transition-colors">Home</Link>
+            <Link href="/" className="hover:text-shim-text">Home</Link>
             <span>/</span>
-            <Link href={`/anime/${id}`} className="hover:text-shim-text transition-colors clamp2 max-w-[200px]">{title}</Link>
+            <Link href={`/anime/${id}`} className="hover:text-shim-text clamp2 max-w-[200px]">{title}</Link>
             <span>/</span>
             <span className="text-shim-textD">Episode {ep}</span>
           </div>
 
           <div className="flex flex-col lg:flex-row gap-6">
-
-            {/* Player section */}
             <div className="flex-1">
 
-              {/* Title + controls row */}
+              {/* Title + language toggle */}
               <div className="flex items-start justify-between mb-3 flex-wrap gap-3">
                 <h1 className="text-base font-bold text-shim-text">
                   {title} <span className="text-shim-primary">— Ep {ep}</span>
                 </h1>
-
-                {/* Sub/Dub toggle */}
-                <div className="flex rounded-xl overflow-hidden border border-shim-border flex-shrink-0">
-                  {['sub', 'dub'].map(m => (
-                    <button key={m} onClick={() => setMode(m)}
-                      className={`px-4 py-2 text-sm font-medium capitalize transition-all ${mode === m ? 'bg-shim-primary text-white' : 'bg-shim-card text-shim-textD hover:text-shim-text'}`}>
-                      {m === 'sub' ? '🇯🇵 SUB' : '🇺🇸 DUB'}
-                    </button>
-                  ))}
+                <div className="flex rounded-xl overflow-hidden border border-shim-border">
+                  {['sub','dub','hindi'].map(m => {
+                    const available = availableLangs.includes(m)
+                    return (
+                      <button key={m} onClick={() => available && setMode(m)}
+                        className={`px-3 py-2 text-xs font-medium capitalize transition-all
+                          ${mode === m ? 'bg-shim-primary text-white' : ''}
+                          ${!available ? 'opacity-30 cursor-not-allowed' : 'hover:text-shim-text'}
+                          ${mode !== m && available ? 'bg-shim-card text-shim-textD' : ''}`}>
+                        {m === 'sub' ? '🇯🇵 SUB' : m === 'dub' ? '🇺🇸 DUB' : '🇮🇳 HIN'}
+                      </button>
+                    )
+                  })}
                 </div>
-              </div>
-
-              {/* Server selector */}
-              <div className="flex items-center gap-2 mb-3 flex-wrap">
-                <span className="text-xs text-shim-muted">Server:</span>
-                {SERVERS.map((s, i) => (
-                  <button key={i} onClick={() => setServer(i)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${server === i ? 'bg-shim-primary text-white shadow-lg shadow-shim-primary/30' : 'bg-shim-card border border-shim-border text-shim-textD hover:text-shim-text hover:border-shim-primary/40'}`}>
-                    {s.name}
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${server === i ? 'bg-white/20 text-white' : 'bg-shim-bgalt text-shim-muted'}`}>
-                      {s.label}
-                    </span>
-                  </button>
-                ))}
-                <span className="text-xs text-shim-muted ml-2">
-                  If Current Server Is Not Working then try another Server.
-                </span>
               </div>
 
               {/* Video player */}
               <div className="relative aspect-video bg-black rounded-2xl overflow-hidden border border-shim-border shadow-2xl">
                 {loading ? (
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="w-10 h-10 border-2 border-shim-primary border-t-transparent rounded-full animate-spin" />
-                      <p className="text-shim-muted text-sm">Loading player...</p>
-                    </div>
+                    <div className="w-10 h-10 border-2 border-shim-primary border-t-transparent rounded-full animate-spin"/>
                   </div>
                 ) : isLocked ? (
                   <div className="absolute inset-0 bg-shim-bg/95 flex items-center justify-center">
                     <div className="text-center p-8 max-w-sm">
                       <div className="text-5xl mb-4">⭐</div>
                       <h3 className="text-xl font-bold text-shim-gold mb-2">Premium Content</h3>
-                      <p className="text-shim-textD text-sm mb-6">
-                        Episodes 4+ need a Premium account. Get unlimited episodes and HD quality.
-                      </p>
-                      <Link href="/premium" className="btn-primary inline-flex">
-                        Upgrade to Premium
-                      </Link>
-                      <p className="text-xs text-shim-muted mt-3">Or ask an admin to grant access</p>
+                      <p className="text-shim-textD text-sm mb-6">Episodes 4+ need Premium access.</p>
+                      <Link href="/premium" className="btn-primary inline-flex">Upgrade to Premium</Link>
                     </div>
                   </div>
-                ) : (
+                ) : embedUrl ? (
                   <iframe
-                    key={`${server}-${id}-${ep}-${mode}`}
-                    src={iframeSrc}
+                    key={`${id}-${ep}-${mode}`}
+                    src={embedUrl}
                     className="w-full h-full"
                     allowFullScreen
                     allow="autoplay; fullscreen; picture-in-picture"
                     frameBorder="0"
                     title={`${title} Episode ${ep}`}
                   />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="text-center p-8">
+                      <div className="text-4xl mb-3">🎬</div>
+                      <p className="text-shim-textD font-medium mb-1">Episode not available yet</p>
+                      <p className="text-shim-muted text-sm">Admin ne abhi is episode ka link add nahi kiya.</p>
+                    </div>
+                  </div>
                 )}
               </div>
 
-              {/* Episode navigation */}
-              <div className="flex items-center justify-between mt-4 gap-3 flex-wrap">
+              {/* Episode nav */}
+              <div className="flex items-center justify-between mt-4 gap-3">
                 <Link href={`/watch/${id}?ep=${Math.max(1, epInt - 1)}`}
                   className={`btn-ghost text-sm ${epInt <= 1 ? 'opacity-40 pointer-events-none' : ''}`}>
                   ← Prev
@@ -171,18 +146,15 @@ export default function WatchPage() {
                 <div className="mt-4 flex items-center gap-4 p-4 glass rounded-xl border border-shim-border flex-wrap">
                   <Link href={`/anime/${id}`} className="flex items-center gap-3 flex-1 min-w-0">
                     <img src={anime.images?.jpg?.image_url} alt={title}
-                      className="w-10 h-14 object-cover rounded-lg flex-shrink-0" />
+                      className="w-10 h-14 object-cover rounded-lg flex-shrink-0"/>
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-shim-text hover:text-shim-accent transition-colors clamp2">{title}</p>
-                      <p className="text-xs text-shim-muted">{anime.genres?.slice(0, 2).map(g => g.name).join(', ')}</p>
+                      <p className="text-xs text-shim-muted">{anime.genres?.slice(0,2).map(g=>g.name).join(', ')}</p>
                     </div>
                   </Link>
                   <div className="flex items-center gap-4 flex-shrink-0">
-                    <div className="flex items-center gap-1 text-shim-gold">
-                      <span>★</span>
-                      <span className="text-sm font-bold">{anime.score?.toFixed(1) || 'N/A'}</span>
-                    </div>
-                    <span className="text-xs text-shim-muted">{anime.episodes} episodes</span>
+                    <span className="text-shim-gold font-bold">★ {anime.score?.toFixed(1)||'N/A'}</span>
+                    <span className="text-xs text-shim-muted">{anime.episodes} eps</span>
                   </div>
                 </div>
               )}
@@ -195,49 +167,54 @@ export default function WatchPage() {
                   <h3 className="text-sm font-semibold text-shim-text">Episodes</h3>
                   <span className="text-xs text-shim-muted">{episodes.length || anime?.episodes || '?'} total</span>
                 </div>
-
-                {/* Episode page tabs */}
                 {totalPgs > 1 && (
                   <div className="flex gap-1 p-2 border-b border-shim-border overflow-x-auto">
-                    {Array.from({ length: totalPgs }, (_, i) => (
-                      <button key={i} onClick={() => setEpPage(i + 1)}
-                        className={`flex-shrink-0 px-2 py-1 rounded text-xs font-medium transition-all ${epPage === i + 1 ? 'bg-shim-primary text-white' : 'text-shim-muted hover:text-shim-text'}`}>
-                        {i * EPP + 1}-{Math.min((i + 1) * EPP, episodes.length)}
+                    {Array.from({length: totalPgs}, (_,i) => (
+                      <button key={i} onClick={() => setEpPage(i+1)}
+                        className={`flex-shrink-0 px-2 py-1 rounded text-xs font-medium transition-all ${epPage===i+1?'bg-shim-primary text-white':'text-shim-muted hover:text-shim-text'}`}>
+                        {i*EPP+1}-{Math.min((i+1)*EPP, episodes.length)}
                       </button>
                     ))}
                   </div>
                 )}
-
-                <div className="overflow-y-auto" style={{ maxHeight: '520px' }}>
+                <div className="overflow-y-auto" style={{maxHeight:'520px'}}>
                   {episodes.length === 0 ? (
                     <div className="p-3 grid grid-cols-5 gap-1.5">
-                      {Array.from({ length: Math.min(anime?.episodes || 24, 200) }, (_, i) => i + 1).map(n => (
-                        <Link key={n} href={`/watch/${id}?ep=${n}`}
-                          className={`flex items-center justify-center py-2 rounded-lg text-xs font-medium transition-all ${String(n) === ep ? 'bg-shim-primary text-white' : 'bg-shim-card border border-shim-border text-shim-textD hover:border-shim-primary/50 hover:text-shim-accent'}`}>
-                          {n}
-                        </Link>
-                      ))}
+                      {Array.from({length: Math.min(anime?.episodes||24, 200)}, (_,i) => i+1).map(n => {
+                        const hasEp = dbEpisodes.some(e => e.episode_num === n)
+                        return (
+                          <Link key={n} href={`/watch/${id}?ep=${n}`}
+                            className={`flex items-center justify-center py-2 rounded-lg text-xs font-medium transition-all
+                              ${String(n)===ep?'bg-shim-primary text-white':''}
+                              ${hasEp&&String(n)!==ep?'bg-shim-card border border-shim-primary/40 text-shim-accent':''}
+                              ${!hasEp&&String(n)!==ep?'bg-shim-card border border-shim-border text-shim-textD hover:border-shim-primary/50':''}`}>
+                            {n}
+                          </Link>
+                        )
+                      })}
                     </div>
                   ) : (
-                    pagedEps.map(e2 => (
-                      <Link key={e2.mal_id} href={`/watch/${id}?ep=${e2.mal_id}`}
-                        className={`flex items-center gap-3 px-4 py-3 border-b border-shim-border/50 transition-all hover:bg-white/5 ${String(e2.mal_id) === ep ? 'bg-shim-primary/10 border-l-2 border-l-shim-primary' : ''}`}>
-                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 ${String(e2.mal_id) === ep ? 'bg-shim-primary text-white' : 'bg-shim-card text-shim-textD'}`}>
-                          {e2.mal_id}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-xs clamp2 ${String(e2.mal_id) === ep ? 'text-shim-accent' : 'text-shim-textD'}`}>
-                            {e2.title || `Episode ${e2.mal_id}`}
-                          </p>
-                          {e2.aired && (
-                            <p className="text-xs text-shim-muted">{new Date(e2.aired).toLocaleDateString()}</p>
-                          )}
-                        </div>
-                        {!isPremium && e2.mal_id > 3 && (
-                          <span className="text-shim-gold text-xs flex-shrink-0">⭐</span>
-                        )}
-                      </Link>
-                    ))
+                    pagedEps.map(e2 => {
+                      const hasEp = dbEpisodes.some(e => e.episode_num === e2.mal_id)
+                      return (
+                        <Link key={e2.mal_id} href={`/watch/${id}?ep=${e2.mal_id}`}
+                          className={`flex items-center gap-3 px-4 py-3 border-b border-shim-border/50 transition-all hover:bg-white/5 ${String(e2.mal_id)===ep?'bg-shim-primary/10 border-l-2 border-l-shim-primary':''}`}>
+                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 ${String(e2.mal_id)===ep?'bg-shim-primary text-white':hasEp?'bg-shim-primary/20 text-shim-accent':'bg-shim-card text-shim-textD'}`}>
+                            {e2.mal_id}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-xs clamp2 ${String(e2.mal_id)===ep?'text-shim-accent':hasEp?'text-shim-text':'text-shim-textD'}`}>
+                              {e2.title||`Episode ${e2.mal_id}`}
+                            </p>
+                            {e2.aired && <p className="text-xs text-shim-muted">{new Date(e2.aired).toLocaleDateString()}</p>}
+                          </div>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            {hasEp && <span className="text-shim-primary text-xs">▶</span>}
+                            {!isPremium && e2.mal_id > 3 && <span className="text-shim-gold text-xs">⭐</span>}
+                          </div>
+                        </Link>
+                      )
+                    })
                   )}
                 </div>
               </div>
