@@ -100,7 +100,7 @@ export default function WatchPage() {
               </div>
 
               {/* Video player */}
-              <div className="relative aspect-video bg-black rounded-2xl overflow-hidden border border-shim-border shadow-2xl">
+              <div className="relative aspect-video bg-black rounded-2xl border border-shim-border shadow-2xl" style={{overflow: 'clip'}}>
                 {loading ? (
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="w-10 h-10 border-2 border-shim-primary border-t-transparent rounded-full animate-spin" />
@@ -125,6 +125,7 @@ export default function WatchPage() {
                     title={`${title} Episode ${ep}`}
                   />
                 ) : (
+                  
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="text-center p-8">
                       <div className="text-4xl mb-3">🎬</div>
