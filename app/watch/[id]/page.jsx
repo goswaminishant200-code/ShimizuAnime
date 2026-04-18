@@ -115,15 +115,15 @@ export default function WatchPage() {
                     </div>
                   </div>
                 ) : embedUrl ? (
-                  <iframe
-                    key={`${id}-${ep}-${lang}`}
-                    src={embedUrl}
-                    className="w-full h-full"
-                    allowFullScreen
-                    allow="autoplay; fullscreen; picture-in-picture"
-                    frameBorder="0"
-                    title={`${title} Episode ${ep}`}
-                  />
+                   <iframe
+                     key={`${id}-${ep}-${lang}`}
+                     src={embedUrl}
+                     className="w-full h-full"
+                     allowFullScreen={true}
+                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; web-share"
+                     frameBorder="0"
+                     title={`${title} Episode ${ep}`}
+                   />
                 ) : (
                   
                   <div className="absolute inset-0 flex items-center justify-center">
