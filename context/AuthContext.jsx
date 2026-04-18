@@ -21,6 +21,7 @@ export function AuthProvider({ children }) {
       if (data?.banned) {
         await supabase.auth.signOut()
         setUser(null); setProfile(null); setLoading(false)
+        toast.error('Account banned. Contact admin.')
         return
       }
       setProfile(data)
@@ -39,26 +40,47 @@ export function AuthProvider({ children }) {
       else setLoading(false)
     })
 
+    // Ban check every 60 seconds
+    const banInterval = setInterval(async () => {
+      const { data } = await supabase.auth.getSession()
+      const u = data.session?.user ?? null
+      if (u) loadProfile(u.id)
+    }, 60000)
+
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       const u = session?.user ?? null
       setUser(u)
       if (u) loadProfile(u.id)
       else { setProfile(null); setLoading(false) }
     })
-    return () => sub.subscription.unsubscribe()
+
+    return () => {
+      sub.subscription.unsubscribe()
+      clearInterval(banInterval)
+    }
   }, [])
 
   const register = async (email, password, displayName) => {
+    // Input sanitization
+    const cleanName = displayName.trim().slice(0, 30).replace(/[<>]/g, '')
+    const cleanEmail = email.trim().toLowerCase()
+
+    if (!cleanName) throw new Error('Display name required')
+    if (password.length < 6) throw new Error('Password min 6 characters')
+
     const { data, error } = await supabase.auth.signUp({
-      email, password,
-      options: { data: { display_name: displayName } }
+      email: cleanEmail,
+      password,
+      options: { data: { display_name: cleanName } }
     })
     if (error) throw error
+
+    // Create profile only if user confirmed (or email confirm disabled)
     if (data.user) {
       await supabase.from('profiles').upsert({
         id: data.user.id,
-        email,
-        display_name: displayName,
+        email: cleanEmail,
+        display_name: cleanName,
         role: 'free',
         banned: false,
         bio: '',
@@ -67,21 +89,30 @@ export function AuthProvider({ children }) {
         anilist_link: ''
       })
     }
-    toast.success('Account created!')
-    return data
+
+    // Check if email confirmation needed
+    if (data.user && !data.session) {
+      // Email confirmation required
+      return { needsConfirmation: true }
+    }
+
+    return { needsConfirmation: false }
   }
 
   const login = async (email, password) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password
+    })
     if (error) throw error
-    toast.success('Welcome! ようこそ')
+    toast.success('Welcome back! ようこそ')
     return data
   }
 
   const logout = async () => {
     await supabase.auth.signOut()
     setUser(null); setProfile(null)
-    toast.success('Logged out!')
+    toast.success('Logged out! さようなら')
   }
 
   const isAdmin   = profile?.role === 'admin'
