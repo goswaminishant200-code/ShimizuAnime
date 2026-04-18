@@ -6,6 +6,14 @@ import Link from 'next/link'
 import { useAuth } from '@/context/AuthContext'
 import { supabase } from '@/lib/supabase'
 
+const LANGS = [
+  { key: 'url_sub',    label: '🇯🇵 SUB',    code: 'sub' },
+  { key: 'url_dub',    label: '🇺🇸 DUB',    code: 'dub' },
+  { key: 'url_hindi',  label: '🇮🇳 HIN',    code: 'hindi' },
+  { key: 'url_tamil',  label: '🇮🇳 TAM',    code: 'tamil' },
+  { key: 'url_telugu', label: '🇮🇳 TEL',    code: 'telugu' },
+]
+
 export default function WatchPage() {
   const params = useParams()
   const sp = useSearchParams()
@@ -17,7 +25,7 @@ export default function WatchPage() {
   const [anime,      setAnime]      = useState(null)
   const [episodes,   setEpisodes]   = useState([])
   const [dbEpisodes, setDbEpisodes] = useState([])
-  const [mode,       setMode]       = useState('sub')
+  const [lang,       setLang]       = useState('url_sub')
   const [loading,    setLoading]    = useState(true)
   const [epPage,     setEpPage]     = useState(1)
   const EPP = 50
@@ -27,7 +35,7 @@ export default function WatchPage() {
     Promise.all([
       fetch(`https://api.jikan.moe/v4/anime/${id}`).then(r => r.json()),
       fetch(`https://api.jikan.moe/v4/anime/${id}/episodes`).then(r => r.json()),
-      supabase.from('episodes').select('*').eq('anime_id', id).order('episode_num'),
+      supabase.from('episodes').select('*').eq('anime_id', String(id)).order('episode_num'),
     ]).then(([a, e, { data: dbEps }]) => {
       setAnime(a.data)
       setEpisodes(e.data || [])
@@ -35,22 +43,24 @@ export default function WatchPage() {
     }).catch(() => {}).finally(() => setLoading(false))
   }, [id])
 
-  const title    = anime?.title_english || anime?.title || 'Loading...'
-  const epInt    = parseInt(ep)
+  const title  = anime?.title_english || anime?.title || 'Loading...'
+  const epInt  = parseInt(ep)
   const isLocked = !isPremium && epInt > 3
   const pagedEps = episodes.slice((epPage - 1) * EPP, epPage * EPP)
   const totalPgs = Math.ceil(episodes.length / EPP)
 
-  // Current episode ka embed URL Supabase se
-  const currentDbEp = dbEpisodes.find(
-    e => e.episode_num === epInt && e.language === mode
-  )
-  const embedUrl = currentDbEp?.embed_url || null
+  const currentDbEp = dbEpisodes.find(e => e.episode_num === epInt)
+  const embedUrl = currentDbEp?.[lang] || null
 
-  // Available languages for current episode
-  const availableLangs = [...new Set(
-    dbEpisodes.filter(e => e.episode_num === epInt).map(e => e.language)
-  )]
+  const availableLangs = LANGS.filter(l => currentDbEp?.[l.key])
+
+  // Auto select first available lang
+  useEffect(() => {
+    if (currentDbEp) {
+      const first = LANGS.find(l => currentDbEp[l.key])
+      if (first && !currentDbEp[lang]) setLang(first.key)
+    }
+  }, [currentDbEp])
 
   return (
     <div className="min-h-screen bg-shim-bg">
@@ -70,38 +80,30 @@ export default function WatchPage() {
           <div className="flex flex-col lg:flex-row gap-6">
             <div className="flex-1">
 
-              {/* Title + language toggle */}
+              {/* Title + lang toggle */}
               <div className="flex items-start justify-between mb-3 flex-wrap gap-3">
                 <h1 className="text-base font-bold text-shim-text">
                   {title} <span className="text-shim-primary">— Ep {ep}</span>
                 </h1>
-                <div className="flex rounded-xl overflow-hidden border border-shim-border">
-                  {['sub','dub','hindi','tamil','telugu','japanese'].map(m => {
-                    const available = availableLangs.includes(m)
-                    return (
-                      <button key={m} onClick={() => available && setMode(m)}
-                        className={`px-3 py-2 text-xs font-medium capitalize transition-all
-                          ${mode === m ? 'bg-shim-primary text-white' : ''}
-                          ${!available ? 'opacity-30 cursor-not-allowed' : 'hover:text-shim-text'}
-                          ${mode !== m && available ? 'bg-shim-card text-shim-textD' : ''}`}>
-                        {m === 'sub' ? '🇯🇵 SUB' 
-                        : m === 'dub' ? '🇺🇸 DUB' 
-                        : m === 'hindi' ? '🇮🇳 HIN'
-                        : m === 'tamil' ? '🇮🇳 TAM'
-                        : m === 'telugu' ? '🇮🇳 TEL'
-                        : m === 'japanese' ? '🎌 JPN'
-                        : m.toUpperCase()}
+
+                {/* Language buttons */}
+                {availableLangs.length > 0 && (
+                  <div className="flex rounded-xl overflow-hidden border border-shim-border flex-shrink-0">
+                    {availableLangs.map(l => (
+                      <button key={l.key} onClick={() => setLang(l.key)}
+                        className={`px-3 py-2 text-xs font-medium transition-all ${lang === l.key ? 'bg-shim-primary text-white' : 'bg-shim-card text-shim-textD hover:text-shim-text'}`}>
+                        {l.label}
                       </button>
-                    )
-                  })}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Video player */}
               <div className="relative aspect-video bg-black rounded-2xl overflow-hidden border border-shim-border shadow-2xl">
                 {loading ? (
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-10 h-10 border-2 border-shim-primary border-t-transparent rounded-full animate-spin"/>
+                    <div className="w-10 h-10 border-2 border-shim-primary border-t-transparent rounded-full animate-spin" />
                   </div>
                 ) : isLocked ? (
                   <div className="absolute inset-0 bg-shim-bg/95 flex items-center justify-center">
@@ -114,7 +116,7 @@ export default function WatchPage() {
                   </div>
                 ) : embedUrl ? (
                   <iframe
-                    key={`${id}-${ep}-${mode}`}
+                    key={`${id}-${ep}-${lang}`}
                     src={embedUrl}
                     className="w-full h-full"
                     allowFullScreen
@@ -139,12 +141,8 @@ export default function WatchPage() {
                   className={`btn-ghost text-sm ${epInt <= 1 ? 'opacity-40 pointer-events-none' : ''}`}>
                   ← Prev
                 </Link>
-                <span className="text-shim-muted text-sm">
-                  Episode {ep} of {anime?.episodes || '?'}
-                </span>
-                <Link href={`/watch/${id}?ep=${epInt + 1}`} className="btn-ghost text-sm">
-                  Next →
-                </Link>
+                <span className="text-shim-muted text-sm">Episode {ep} of {anime?.episodes || '?'}</span>
+                <Link href={`/watch/${id}?ep=${epInt + 1}`} className="btn-ghost text-sm">Next →</Link>
               </div>
 
               {/* Anime info strip */}
@@ -152,7 +150,7 @@ export default function WatchPage() {
                 <div className="mt-4 flex items-center gap-4 p-4 glass rounded-xl border border-shim-border flex-wrap">
                   <Link href={`/anime/${id}`} className="flex items-center gap-3 flex-1 min-w-0">
                     <img src={anime.images?.jpg?.image_url} alt={title}
-                      className="w-10 h-14 object-cover rounded-lg flex-shrink-0"/>
+                      className="w-10 h-14 object-cover rounded-lg flex-shrink-0" />
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-shim-text hover:text-shim-accent transition-colors clamp2">{title}</p>
                       <p className="text-xs text-shim-muted">{anime.genres?.slice(0,2).map(g=>g.name).join(', ')}</p>
@@ -173,6 +171,7 @@ export default function WatchPage() {
                   <h3 className="text-sm font-semibold text-shim-text">Episodes</h3>
                   <span className="text-xs text-shim-muted">{episodes.length || anime?.episodes || '?'} total</span>
                 </div>
+
                 {totalPgs > 1 && (
                   <div className="flex gap-1 p-2 border-b border-shim-border overflow-x-auto">
                     {Array.from({length: totalPgs}, (_,i) => (
@@ -183,6 +182,7 @@ export default function WatchPage() {
                     ))}
                   </div>
                 )}
+
                 <div className="overflow-y-auto" style={{maxHeight:'520px'}}>
                   {episodes.length === 0 ? (
                     <div className="p-3 grid grid-cols-5 gap-1.5">

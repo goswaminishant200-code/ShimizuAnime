@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import { useAuth } from '@/context/AuthContext'
@@ -35,6 +35,7 @@ const Btn = ({ label, color, busy, onClick }) => {
 export default function AdminPage() {
   const { user, profile, loading } = useAuth()
   const router = useRouter()
+  const csvRef = useRef()
 
   const [tab, setTab] = useState('Overview')
   const [users, setUsers] = useState([])
@@ -47,8 +48,14 @@ export default function AdminPage() {
   const [annForm, setAnnForm] = useState({ title: '', message: '' })
   const [newsForm, setNewsForm] = useState({ title: '', content: '', image_url: '', category: 'General' })
   const [episodes, setEpisodes] = useState([])
-  const [epForm, setEpForm] = useState({ anime_id: '', episode_num: '', title: '', embed_url: '', language: 'sub', quality: 'HD' })
+  const [epFilter, setEpFilter] = useState('')
   const [epLoading, setEpLoading] = useState(false)
+  const [csvLoading, setCsvLoading] = useState(false)
+  const [csvPreview, setCsvPreview] = useState([])
+  const [epForm, setEpForm] = useState({
+    anime_id: '', episode_num: '', title: '',
+    url_sub: '', url_dub: '', url_hindi: '', url_tamil: '', url_telugu: ''
+  })
 
   const loadEpisodes = async () => {
     const { data } = await supabase.from('episodes').select('*').order('anime_id').order('episode_num')
@@ -61,31 +68,17 @@ export default function AdminPage() {
     if (profile && profile.role !== 'admin') { toast.error('Admins only'); router.push('/'); return }
     if (profile && profile.role === 'admin') {
       setPageReady(true)
-      load()
-      loadAnns()
-      loadNews()
-      loadEpisodes()
+      load(); loadAnns(); loadNews(); loadEpisodes()
     }
   }, [loading, user, profile])
 
   const load = async () => {
     setULoad(true)
-    try {
-      const data = await getAllProfiles()
-      setUsers(data || [])
-    } catch (e) {
-      toast.error('Failed to load users: ' + e.message)
-    }
+    try { setUsers(await getAllProfiles() || []) } catch (e) { toast.error('Failed: ' + e.message) }
     setULoad(false)
   }
-
-  const loadAnns = async () => {
-    try { setAnns(await getAnnouncements() || []) } catch (e) { console.error(e) }
-  }
-
-  const loadNews = async () => {
-    try { setNews(await getNews() || []) } catch (e) { console.error(e) }
-  }
+  const loadAnns = async () => { try { setAnns(await getAnnouncements() || []) } catch (e) { console.error(e) } }
+  const loadNews = async () => { try { setNews(await getNews() || []) } catch (e) { console.error(e) } }
 
   const act = async (action, uid, label) => {
     setBusy(uid + action)
@@ -95,8 +88,7 @@ export default function AdminPage() {
       if (action === 'admin') await makeAdmin(uid)
       if (action === 'ban') await banUser(uid)
       if (action === 'unban') await unbanUser(uid)
-      toast.success(label + ' ✓')
-      await load()
+      toast.success(label + ' ✓'); await load()
     } catch (e) { toast.error('Failed: ' + e.message) }
     setBusy(null)
   }
@@ -117,36 +109,104 @@ export default function AdminPage() {
     } catch (e) { toast.error(e.message) }
   }
 
-  const addEpisode = async () => {
-    if (!epForm.anime_id || !epForm.episode_num || !epForm.embed_url) {
-      toast.error('Anime ID, Episode Number, aur Embed URL required hai')
-      return
+  const saveEpisode = async () => {
+    if (!epForm.anime_id || !epForm.episode_num) { toast.error('Anime ID aur Episode Number required'); return }
+    if (!epForm.url_sub && !epForm.url_dub && !epForm.url_hindi && !epForm.url_tamil && !epForm.url_telugu) {
+      toast.error('Kam se kam ek URL daalo'); return
     }
     setEpLoading(true)
     const { error } = await supabase.from('episodes').upsert({
-      anime_id: epForm.anime_id,
+      anime_id: String(epForm.anime_id),
       episode_num: parseInt(epForm.episode_num),
       title: epForm.title,
-      embed_url: epForm.embed_url,
-      language: epForm.language,
-      quality: epForm.quality,
-    })
+      url_sub: epForm.url_sub,
+      url_dub: epForm.url_dub,
+      url_hindi: epForm.url_hindi,
+      url_tamil: epForm.url_tamil,
+      url_telugu: epForm.url_telugu,
+    }, { onConflict: 'anime_id,episode_num' })
     if (error) toast.error(error.message)
-    else { toast.success('Episode saved!'); loadEpisodes() }
+    else {
+      toast.success('Episode saved!')
+      setEpForm(p => ({ ...p, episode_num: String(parseInt(p.episode_num) + 1), title: '', url_sub: '', url_dub: '', url_hindi: '', url_tamil: '', url_telugu: '' }))
+      loadEpisodes()
+    }
     setEpLoading(false)
   }
 
-  const deleteEpisode = async (id) => {
-    await supabase.from('episodes').delete().eq('id', id)
-    toast.success('Deleted')
+  const downloadTemplate = () => {
+    const csv = 'anime_id,episode_num,title,url_sub,url_dub,url_hindi,url_tamil,url_telugu\n21,1,Episode 1,https://voe.sx/e/xxx,,,,'
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = 'shimizu_episodes_template.csv'
+    a.click()
+  }
+
+  const parseCSV = (text) => {
+    const lines = text.trim().split('\n')
+    const headers = lines[0].split(',').map(h => h.trim())
+    return lines.slice(1).map(line => {
+      const vals = line.split(',').map(v => v.trim())
+      const obj = {}
+      headers.forEach((h, i) => obj[h] = vals[i] || '')
+      return obj
+    }).filter(r => r.anime_id && r.episode_num)
+  }
+
+  const onCsvSelect = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => setCsvPreview(parseCSV(ev.target.result))
+    reader.readAsText(file)
+  }
+
+  const importCSV = async () => {
+    if (csvPreview.length === 0) { toast.error('Pehle CSV select karo'); return }
+    setCsvLoading(true)
+    const rows = csvPreview.map(r => ({
+      anime_id: String(r.anime_id),
+      episode_num: parseInt(r.episode_num),
+      title: r.title || '',
+      url_sub: r.url_sub || '',
+      url_dub: r.url_dub || '',
+      url_hindi: r.url_hindi || '',
+      url_tamil: r.url_tamil || '',
+      url_telugu: r.url_telugu || '',
+    }))
+    const batchSize = 50
+    let imported = 0
+    for (let i = 0; i < rows.length; i += batchSize) {
+      const { error } = await supabase.from('episodes').upsert(rows.slice(i, i + batchSize), { onConflict: 'anime_id,episode_num' })
+      if (error) { toast.error('Error: ' + error.message); setCsvLoading(false); return }
+      imported += rows.slice(i, i + batchSize).length
+    }
+    toast.success(`${imported} episodes imported!`)
+    setCsvPreview([])
+    if (csvRef.current) csvRef.current.value = ''
     loadEpisodes()
+    setCsvLoading(false)
+  }
+
+  const deleteEpisode = async (id) => {
+    if (!window.confirm('Delete?')) return
+    await supabase.from('episodes').delete().eq('id', id)
+    toast.success('Deleted'); loadEpisodes()
+  }
+
+  const deleteAllForAnime = async (animeId) => {
+    if (!window.confirm(`Delete ALL episodes for Anime ID ${animeId}?`)) return
+    await supabase.from('episodes').delete().eq('anime_id', animeId)
+    toast.success('All deleted'); loadEpisodes()
   }
 
   const filtered = users.filter(u =>
     u.email?.toLowerCase().includes(search.toLowerCase()) ||
     u.display_name?.toLowerCase().includes(search.toLowerCase())
   )
-
+  const filteredEps = epFilter ? episodes.filter(e => e.anime_id === epFilter) : episodes
+  const animeIds = [...new Set(episodes.map(e => e.anime_id))]
   const stats = {
     total: users.length,
     premium: users.filter(u => u.role === 'premium').length,
@@ -159,9 +219,7 @@ export default function AdminPage() {
     return (
       <div className="min-h-screen bg-shim-bg flex flex-col items-center justify-center gap-4">
         <div className="w-10 h-10 border-2 border-shim-primary border-t-transparent rounded-full animate-spin" />
-        <p className="text-shim-muted text-sm">
-          {loading ? 'Checking auth...' : !profile ? 'Loading profile...' : 'Loading admin panel...'}
-        </p>
+        <p className="text-shim-muted text-sm">{loading ? 'Checking auth...' : 'Loading admin panel...'}</p>
       </div>
     )
   }
@@ -189,10 +247,10 @@ export default function AdminPage() {
         </div>
 
         {tab === 'Overview' && (
-          <div className="space-y-8">
+          <div className="space-y-6">
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
               {[
-                { l: 'Total', v: stats.total, c: 'text-shim-text', i: '👥' },
+                { l: 'Total Users', v: stats.total, c: 'text-shim-text', i: '👥' },
                 { l: 'Free', v: stats.free, c: 'text-shim-textD', i: '🆓' },
                 { l: 'Premium', v: stats.premium, c: 'text-shim-gold', i: '⭐' },
                 { l: 'Admins', v: stats.admin, c: 'text-shim-primary', i: '👑' },
@@ -205,21 +263,16 @@ export default function AdminPage() {
                 </div>
               ))}
             </div>
-            <div>
-              <h2 className="text-base font-semibold text-shim-text mb-4">Recent Users</h2>
-              <div className="space-y-2">
-                {users.slice(0, 5).map(u => (
-                  <div key={u.id} className="flex items-center gap-3 p-4 bg-shim-card border border-shim-border rounded-xl">
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${u.role === 'admin' ? 'bg-shim-gold/20 text-shim-gold' : u.role === 'premium' ? 'bg-shim-primary/20 text-shim-accent' : 'bg-shim-bgalt text-shim-textD'}`}>
-                      {u.display_name?.[0]?.toUpperCase() || 'U'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-shim-text">{u.display_name}</p>
-                      <p className="text-xs text-shim-muted truncate">{u.email}</p>
-                    </div>
-                    <Badge role={u.role} banned={u.banned} />
-                  </div>
-                ))}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-shim-card border border-shim-border rounded-2xl p-5 text-center">
+                <div className="text-2xl mb-2">🎬</div>
+                <div className="text-3xl font-bold text-shim-accent mb-1">{episodes.length}</div>
+                <div className="text-xs text-shim-muted">Total Episodes</div>
+              </div>
+              <div className="bg-shim-card border border-shim-border rounded-2xl p-5 text-center">
+                <div className="text-2xl mb-2">📺</div>
+                <div className="text-3xl font-bold text-shim-accent mb-1">{animeIds.length}</div>
+                <div className="text-xs text-shim-muted">Anime Added</div>
               </div>
             </div>
           </div>
@@ -288,7 +341,7 @@ export default function AdminPage() {
                   {anns.map(a => (
                     <div key={a.id} className="p-4 bg-shim-card border border-shim-border rounded-xl flex items-start justify-between gap-4">
                       <div><p className="font-semibold text-shim-text text-sm">{a.title}</p><p className="text-shim-textD text-sm mt-1">{a.message}</p></div>
-                      <button onClick={() => removeAnnouncement(a.id).then(loadAnns)} className="text-xs text-red-400 hover:text-red-300 transition-colors">Remove</button>
+                      <button onClick={() => removeAnnouncement(a.id).then(loadAnns)} className="text-xs text-red-400 hover:text-red-300">Remove</button>
                     </div>
                   ))}
                 </div>
@@ -337,40 +390,115 @@ export default function AdminPage() {
 
         {tab === 'Episodes' && (
           <div className="space-y-6">
-            <div className="glass rounded-2xl border border-shim-border p-6">
-              <h3 className="text-base font-semibold text-shim-text mb-4">Add / Update Episode</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                <input placeholder="Anime MAL ID (e.g. 21)" value={epForm.anime_id}
-                  onChange={e => setEpForm(p => ({...p, anime_id: e.target.value}))} className="input-base" />
-                <input placeholder="Episode Number (e.g. 1)" type="number" value={epForm.episode_num}
-                  onChange={e => setEpForm(p => ({...p, episode_num: e.target.value}))} className="input-base" />
-                <input placeholder="Episode Title (optional)" value={epForm.title}
-                  onChange={e => setEpForm(p => ({...p, title: e.target.value}))} className="input-base" />
-                <input placeholder="Embed URL (e.g. https://voe.sx/e/xxxxx)" value={epForm.embed_url}
-                  onChange={e => setEpForm(p => ({...p, embed_url: e.target.value}))} className="input-base" />
-                <select value={epForm.language} onChange={e => setEpForm(p => ({...p, language: e.target.value}))} className="input-base">
-                  <option value="sub">SUB (Japanese)</option>
-                  <option value="dub">DUB (English)</option>
-                  <option value="hindi">HINDI</option>
-                  <option value="tamil">TAMIL</option>
-                  <option value="telugu">TELUGU</option>
-                  <option value="japanese">JAPANESE RAW</option>
-                </select>
-                <select value={epForm.quality} onChange={e => setEpForm(p => ({...p, quality: e.target.value}))} className="input-base">
-                  <option value="HD">HD</option>
-                  <option value="FHD">1080p</option>
-                  <option value="SD">SD</option>
-                </select>
+
+            {/* CSV Import */}
+            <div className="glass rounded-2xl border border-shim-primary/30 p-6">
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+                <div>
+                  <h3 className="text-base font-semibold text-shim-text">📥 Bulk Import via CSV</h3>
+                  <p className="text-xs text-shim-muted mt-1">Google Sheet se CSV download karo aur yahan import karo — ek baar mein poora season</p>
+                </div>
+                <button onClick={downloadTemplate}
+                  className="px-4 py-2 rounded-xl border border-shim-border text-xs text-shim-textD hover:text-shim-text hover:border-shim-primary/40 transition-all">
+                  📄 Template Download
+                </button>
               </div>
-              <button onClick={addEpisode} disabled={epLoading} className="btn-primary">
-                {epLoading ? 'Saving...' : 'Save Episode'}
-              </button>
+
+              <div className="mb-4 p-3 bg-shim-bgalt rounded-xl border border-shim-border">
+                <p className="text-xs text-shim-muted font-mono">anime_id, episode_num, title, url_sub, url_dub, url_hindi, url_tamil, url_telugu</p>
+              </div>
+
+              <div className="flex items-center gap-3 flex-wrap">
+                <input ref={csvRef} type="file" accept=".csv" onChange={onCsvSelect}
+                  className="text-xs text-shim-textD file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-shim-primary file:text-white hover:file:opacity-90 cursor-pointer" />
+                {csvPreview.length > 0 && (
+                  <button onClick={importCSV} disabled={csvLoading} className="btn-primary text-sm">
+                    {csvLoading ? 'Importing...' : `Import ${csvPreview.length} episodes`}
+                  </button>
+                )}
+              </div>
+
+              {csvPreview.length > 0 && (
+                <div className="mt-4 rounded-xl border border-shim-border overflow-hidden">
+                  <div className="px-4 py-2 border-b border-shim-border bg-shim-bgalt">
+                    <p className="text-xs text-shim-muted">Preview — {csvPreview.length} rows (showing first 10)</p>
+                  </div>
+                  <div className="overflow-x-auto max-h-48 overflow-y-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-shim-border">
+                          {['anime_id','ep','title','sub','dub','hindi','tamil','telugu'].map(h => (
+                            <th key={h} className="text-left px-3 py-2 text-shim-muted font-medium">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {csvPreview.slice(0, 10).map((r, i) => (
+                          <tr key={i} className="border-b border-shim-border/50">
+                            <td className="px-3 py-1.5 text-shim-textD">{r.anime_id}</td>
+                            <td className="px-3 py-1.5 text-shim-textD">{r.episode_num}</td>
+                            <td className="px-3 py-1.5 text-shim-textD max-w-[80px] truncate">{r.title || '-'}</td>
+                            {['url_sub','url_dub','url_hindi','url_tamil','url_telugu'].map(k => (
+                              <td key={k} className="px-3 py-1.5">{r[k] ? <span className="text-green-400">✓</span> : <span className="text-shim-muted">-</span>}</td>
+                            ))}
+                          </tr>
+                        ))}
+                        {csvPreview.length > 10 && (
+                          <tr><td colSpan={8} className="px-3 py-2 text-center text-shim-muted">...aur {csvPreview.length - 10} rows</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
 
+            {/* Single Episode */}
+            <div className="glass rounded-2xl border border-shim-border p-6">
+              <h3 className="text-base font-semibold text-shim-text mb-4">➕ Single Episode Add</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                <input placeholder="Anime MAL ID (e.g. 21)" value={epForm.anime_id}
+                  onChange={e => setEpForm(p => ({...p, anime_id: e.target.value}))} className="input-base" />
+                <input placeholder="Episode Number" type="number" value={epForm.episode_num}
+                  onChange={e => setEpForm(p => ({...p, episode_num: e.target.value}))} className="input-base" />
+                <input placeholder="Title (optional)" value={epForm.title}
+                  onChange={e => setEpForm(p => ({...p, title: e.target.value}))} className="input-base" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                {[
+                  { key: 'url_sub', label: '🇯🇵 SUB URL' },
+                  { key: 'url_dub', label: '🇺🇸 DUB URL' },
+                  { key: 'url_hindi', label: '🇮🇳 HINDI URL' },
+                  { key: 'url_tamil', label: '🇮🇳 TAMIL URL' },
+                  { key: 'url_telugu', label: '🇮🇳 TELUGU URL' },
+                ].map(({ key, label }) => (
+                  <input key={key} placeholder={label} value={epForm[key]}
+                    onChange={e => setEpForm(p => ({...p, [key]: e.target.value}))} className="input-base" />
+                ))}
+              </div>
+              <button onClick={saveEpisode} disabled={epLoading} className="btn-primary">
+                {epLoading ? 'Saving...' : 'Save Episode'}
+              </button>
+              <p className="text-xs text-shim-muted mt-2">Save ke baad episode number auto increment hoga — ek ek episode quickly add kar sakte ho</p>
+            </div>
+
+            {/* Episodes List */}
             <div className="glass rounded-2xl border border-shim-border overflow-hidden">
-              <div className="px-4 py-3 border-b border-shim-border flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-shim-text">All Episodes ({episodes.length})</h3>
-                <button onClick={loadEpisodes} className="text-xs text-shim-muted hover:text-shim-text">↻ Refresh</button>
+              <div className="px-4 py-3 border-b border-shim-border flex items-center justify-between flex-wrap gap-3">
+                <h3 className="text-sm font-semibold text-shim-text">All Episodes ({filteredEps.length})</h3>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <select value={epFilter} onChange={e => setEpFilter(e.target.value)} className="input-base text-xs py-1.5">
+                    <option value="">All Anime</option>
+                    {animeIds.map(id => <option key={id} value={id}>Anime ID: {id}</option>)}
+                  </select>
+                  {epFilter && (
+                    <button onClick={() => deleteAllForAnime(epFilter)}
+                      className="text-xs text-red-400 hover:text-red-300 px-3 py-1.5 border border-red-500/30 rounded-lg">
+                      Delete All
+                    </button>
+                  )}
+                  <button onClick={loadEpisodes} className="text-xs text-shim-muted hover:text-shim-text px-2">↻</button>
+                </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -379,22 +507,28 @@ export default function AdminPage() {
                       <th className="text-left px-4 py-2 text-shim-muted font-medium">Anime ID</th>
                       <th className="text-left px-4 py-2 text-shim-muted font-medium">Ep</th>
                       <th className="text-left px-4 py-2 text-shim-muted font-medium">Title</th>
-                      <th className="text-left px-4 py-2 text-shim-muted font-medium">Lang</th>
-                      <th className="text-left px-4 py-2 text-shim-muted font-medium">Quality</th>
+                      <th className="text-left px-4 py-2 text-shim-muted font-medium">Languages</th>
                       <th className="text-left px-4 py-2 text-shim-muted font-medium">Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {episodes.length === 0 && (
-                      <tr><td colSpan={6} className="px-4 py-8 text-center text-shim-muted text-sm">No episodes added yet</td></tr>
+                    {filteredEps.length === 0 && (
+                      <tr><td colSpan={5} className="px-4 py-8 text-center text-shim-muted text-sm">No episodes yet</td></tr>
                     )}
-                    {episodes.map(ep => (
+                    {filteredEps.map(ep => (
                       <tr key={ep.id} className="border-b border-shim-border/50 hover:bg-white/5">
                         <td className="px-4 py-2 text-shim-textD">{ep.anime_id}</td>
-                        <td className="px-4 py-2 text-shim-textD">{ep.episode_num}</td>
-                        <td className="px-4 py-2 text-shim-textD max-w-[150px] truncate">{ep.title || '-'}</td>
-                        <td className="px-4 py-2"><span className="genre-tag">{ep.language}</span></td>
-                        <td className="px-4 py-2 text-shim-textD">{ep.quality}</td>
+                        <td className="px-4 py-2 text-shim-textD font-medium">{ep.episode_num}</td>
+                        <td className="px-4 py-2 text-shim-textD max-w-[120px] truncate">{ep.title || '-'}</td>
+                        <td className="px-4 py-2">
+                          <div className="flex gap-1 flex-wrap">
+                            {ep.url_sub && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">SUB</span>}
+                            {ep.url_dub && <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-400">DUB</span>}
+                            {ep.url_hindi && <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-400">HIN</span>}
+                            {ep.url_tamil && <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">TAM</span>}
+                            {ep.url_telugu && <span className="text-[10px] px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-400">TEL</span>}
+                          </div>
+                        </td>
                         <td className="px-4 py-2">
                           <button onClick={() => deleteEpisode(ep.id)} className="text-red-400 hover:text-red-300 text-xs">Delete</button>
                         </td>
