@@ -115,6 +115,7 @@ export default function WatchPage() {
                     </div>
                   </div>
                 ) : embedUrl ? (
+                 <>
                    <iframe
                      key={`${id}-${ep}-${lang}`}
                      src={embedUrl}
@@ -127,6 +128,7 @@ export default function WatchPage() {
                      className="absolute bottom-3 right-3 z-10 px-3 py-1.5 rounded-lg bg-black/70 border border-shim-border text-xs text-shim-textD hover:text-white transition-all">
                      ↗ Open Fullscreen
                    </a>
+                 </>
                 ) : (
                   
                   <div className="absolute inset-0 flex items-center justify-center">
