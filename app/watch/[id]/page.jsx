@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Link from 'next/link'
@@ -7,17 +7,18 @@ import { useAuth } from '@/context/AuthContext'
 import { supabase } from '@/lib/supabase'
 
 const LANGS = [
-  { key: 'url_sub',    label: '🇯🇵 SUB',    code: 'sub' },
-  { key: 'url_dub',    label: '🇺🇸 DUB',    code: 'dub' },
-  { key: 'url_hindi',  label: '🇮🇳 HIN',    code: 'hindi' },
-  { key: 'url_tamil',  label: '🇮🇳 TAM',    code: 'tamil' },
-  { key: 'url_telugu', label: '🇮🇳 TEL',    code: 'telugu' },
+  { key: 'url_sub',    label: '🇯🇵 SUB' },
+  { key: 'url_dub',    label: '🇺🇸 DUB' },
+  { key: 'url_hindi',  label: '🇮🇳 HIN' },
+  { key: 'url_tamil',  label: '🇮🇳 TAM' },
+  { key: 'url_telugu', label: '🇮🇳 TEL' },
 ]
 
 export default function WatchPage() {
   const params = useParams()
   const sp = useSearchParams()
   const { isPremium } = useAuth()
+  const playerRef = useRef(null)
 
   const id = params.id
   const ep = sp.get('ep') || '1'
@@ -28,6 +29,7 @@ export default function WatchPage() {
   const [lang,       setLang]       = useState('url_sub')
   const [loading,    setLoading]    = useState(true)
   const [epPage,     setEpPage]     = useState(1)
+  const [isFS,       setIsFS]       = useState(false)
   const EPP = 50
 
   useEffect(() => {
@@ -43,24 +45,98 @@ export default function WatchPage() {
     }).catch(() => {}).finally(() => setLoading(false))
   }, [id])
 
-  const title  = anime?.title_english || anime?.title || 'Loading...'
-  const epInt  = parseInt(ep)
+  // Listen for ESC key to exit fake fullscreen
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') setIsFS(false) }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [])
+
+  // Lock body scroll when fullscreen
+  useEffect(() => {
+    document.body.style.overflow = isFS ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [isFS])
+
+  const title    = anime?.title_english || anime?.title || 'Loading...'
+  const epInt    = parseInt(ep)
   const isLocked = !isPremium && epInt > 3
   const pagedEps = episodes.slice((epPage - 1) * EPP, epPage * EPP)
   const totalPgs = Math.ceil(episodes.length / EPP)
 
-  const currentDbEp = dbEpisodes.find(e => e.episode_num === epInt)
-  const embedUrl = currentDbEp?.[lang] || null
-
+  const currentDbEp  = dbEpisodes.find(e => e.episode_num === epInt)
+  const embedUrl     = currentDbEp?.[lang] || null
   const availableLangs = LANGS.filter(l => currentDbEp?.[l.key])
 
-  // Auto select first available lang
   useEffect(() => {
     if (currentDbEp) {
       const first = LANGS.find(l => currentDbEp[l.key])
       if (first && !currentDbEp[lang]) setLang(first.key)
     }
   }, [currentDbEp])
+
+  const PlayerBox = () => (
+    <div
+      ref={playerRef}
+      style={isFS ? {
+        position: 'fixed', inset: 0, zIndex: 9999,
+        background: '#000', display: 'flex', flexDirection: 'column',
+      } : {
+        position: 'relative', aspectRatio: '16/9',
+        background: '#000', borderRadius: '16px',
+        overflow: 'hidden', border: '1px solid rgba(200,68,106,0.2)',
+        boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
+      }}
+    >
+      {/* Fullscreen toggle button */}
+      {embedUrl && !isLocked && (
+        <button
+          onClick={() => setIsFS(f => !f)}
+          style={{
+            position: 'absolute', bottom: 12, right: 12, zIndex: 10,
+            background: 'rgba(0,0,0,0.75)', border: '1px solid rgba(255,255,255,0.2)',
+            color: '#fff', borderRadius: '8px', padding: '6px 10px',
+            fontSize: '12px', cursor: 'pointer', backdropFilter: 'blur(4px)',
+          }}
+          title={isFS ? 'Exit Fullscreen (ESC)' : 'Fullscreen'}
+        >
+          {isFS ? '✕ Exit' : '⛶ Fullscreen'}
+        </button>
+      )}
+
+      {loading ? (
+        <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
+          <div className="w-10 h-10 border-2 border-shim-primary border-t-transparent rounded-full animate-spin"/>
+        </div>
+      ) : isLocked ? (
+        <div style={{position:'absolute',inset:0,background:'rgba(7,7,15,0.95)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+          <div className="text-center p-8 max-w-sm">
+            <div className="text-5xl mb-4">⭐</div>
+            <h3 className="text-xl font-bold text-shim-gold mb-2">Premium Content</h3>
+            <p className="text-shim-textD text-sm mb-6">Episodes 4+ need Premium access.</p>
+            <Link href="/premium" className="btn-primary inline-flex">Upgrade to Premium</Link>
+          </div>
+        </div>
+      ) : embedUrl ? (
+        <iframe
+          key={`${id}-${ep}-${lang}`}
+          src={embedUrl}
+          style={{width:'100%', flex: isFS ? 1 : undefined, height: isFS ? undefined : '100%', border:'none', display:'block'}}
+          allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+          allowFullScreen
+          title={`${title} Episode ${ep}`}
+        />
+      ) : (
+        <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
+          <div className="text-center p-8">
+            <div className="text-4xl mb-3">🎬</div>
+            <p className="text-shim-textD font-medium mb-1">Episode not available yet</p>
+            <p className="text-shim-muted text-sm">Admin ne abhi link add nahi kiya.</p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <div className="min-h-screen bg-shim-bg">
@@ -85,8 +161,6 @@ export default function WatchPage() {
                 <h1 className="text-base font-bold text-shim-text">
                   {title} <span className="text-shim-primary">— Ep {ep}</span>
                 </h1>
-
-                {/* Language buttons */}
                 {availableLangs.length > 0 && (
                   <div className="flex rounded-xl overflow-hidden border border-shim-border flex-shrink-0">
                     {availableLangs.map(l => (
@@ -99,47 +173,7 @@ export default function WatchPage() {
                 )}
               </div>
 
-              {/* Video player */}
-              <div className="relative aspect-video bg-black rounded-2xl border border-shim-border shadow-2xl" style={{overflow:'visible'}}>
-                {loading ? (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-10 h-10 border-2 border-shim-primary border-t-transparent rounded-full animate-spin" />
-                  </div>
-                ) : isLocked ? (
-                  <div className="absolute inset-0 bg-shim-bg/95 flex items-center justify-center">
-                    <div className="text-center p-8 max-w-sm">
-                      <div className="text-5xl mb-4">⭐</div>
-                      <h3 className="text-xl font-bold text-shim-gold mb-2">Premium Content</h3>
-                      <p className="text-shim-textD text-sm mb-6">Episodes 4+ need Premium access.</p>
-                      <Link href="/premium" className="btn-primary inline-flex">Upgrade to Premium</Link>
-                    </div>
-                  </div>
-                ) : embedUrl ? (
-                 <>
-                   <iframe
-                     key={`${id}-${ep}-${lang}`}
-                     src={embedUrl}
-                     style={{width:'100%', height:'100%', border:'none'}}
-                     allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
-                     allowFullScreen
-                     title={`${title} Episode ${ep}`}
-                   />
-                   <a href={embedUrl} target="_blank" rel="noopener noreferrer"
-                     className="absolute bottom-3 right-3 z-10 px-3 py-1.5 rounded-lg bg-black/70 border border-shim-border text-xs text-shim-textD hover:text-white transition-all">
-                     ↗ Open Fullscreen
-                   </a>
-                 </>
-                ) : (
-                  
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="text-center p-8">
-                      <div className="text-4xl mb-3">🎬</div>
-                      <p className="text-shim-textD font-medium mb-1">Episode not available yet</p>
-                      <p className="text-shim-muted text-sm">Admin ne abhi is episode ka link add nahi kiya.</p>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <PlayerBox />
 
               {/* Episode nav */}
               <div className="flex items-center justify-between mt-4 gap-3">
@@ -156,7 +190,7 @@ export default function WatchPage() {
                 <div className="mt-4 flex items-center gap-4 p-4 glass rounded-xl border border-shim-border flex-wrap">
                   <Link href={`/anime/${id}`} className="flex items-center gap-3 flex-1 min-w-0">
                     <img src={anime.images?.jpg?.image_url} alt={title}
-                      className="w-10 h-14 object-cover rounded-lg flex-shrink-0" />
+                      className="w-10 h-14 object-cover rounded-lg flex-shrink-0"/>
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-shim-text hover:text-shim-accent transition-colors clamp2">{title}</p>
                       <p className="text-xs text-shim-muted">{anime.genres?.slice(0,2).map(g=>g.name).join(', ')}</p>
@@ -177,7 +211,6 @@ export default function WatchPage() {
                   <h3 className="text-sm font-semibold text-shim-text">Episodes</h3>
                   <span className="text-xs text-shim-muted">{episodes.length || anime?.episodes || '?'} total</span>
                 </div>
-
                 {totalPgs > 1 && (
                   <div className="flex gap-1 p-2 border-b border-shim-border overflow-x-auto">
                     {Array.from({length: totalPgs}, (_,i) => (
@@ -188,7 +221,6 @@ export default function WatchPage() {
                     ))}
                   </div>
                 )}
-
                 <div className="overflow-y-auto" style={{maxHeight:'520px'}}>
                   {episodes.length === 0 ? (
                     <div className="p-3 grid grid-cols-5 gap-1.5">
