@@ -123,6 +123,10 @@ export default function WatchPage() {
                      allowFullScreen
                      title={`${title} Episode ${ep}`}
                    />
+                   <a href={embedUrl} target="_blank" rel="noopener noreferrer"
+                     className="absolute bottom-3 right-3 z-10 px-3 py-1.5 rounded-lg bg-black/70 border border-shim-border text-xs text-shim-textD hover:text-white transition-all">
+                     ↗ Open Fullscreen
+                   </a>
                 ) : (
                   
                   <div className="absolute inset-0 flex items-center justify-center">
