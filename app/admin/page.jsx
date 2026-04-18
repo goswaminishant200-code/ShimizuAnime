@@ -50,6 +50,7 @@ export default function AdminPage() {
   const loadEpisodes = async () => {
   const { data } = await supabase.from('episodes').select('*').order('anime_id').order('episode_num')
   setEpisodes(data || [])
+  const [tab, setTab] = useState('Users')
 }
 
   useEffect(() => {
