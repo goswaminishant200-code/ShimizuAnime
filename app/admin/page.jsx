@@ -3,10 +3,11 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import { useAuth } from '@/context/AuthContext'
+import { supabase } from '@/lib/supabase'
 import { getAllProfiles, grantPremium, revokePremium, makeAdmin, banUser, unbanUser, postAnnouncement, getAnnouncements, removeAnnouncement, postNews, getNews, deleteNews } from '@/lib/db'
 import toast from 'react-hot-toast'
 
-const TABS = ['Overview', 'Users', 'Announcements', 'News']
+const TABS = ['Overview', 'Users', 'Announcements', 'News', 'Episodes']
 
 const Badge = ({ role, banned }) => {
   if (banned) return <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/20 border border-red-500/30 text-red-400">Banned</span>
@@ -30,6 +31,7 @@ const Btn = ({ label, color, busy, onClick }) => {
     </button>
   )
 }
+
 export default function AdminPage() {
   const { user, profile, loading } = useAuth()
   const router = useRouter()
@@ -47,11 +49,11 @@ export default function AdminPage() {
   const [episodes, setEpisodes] = useState([])
   const [epForm, setEpForm] = useState({ anime_id: '', episode_num: '', title: '', embed_url: '', language: 'sub', quality: 'HD' })
   const [epLoading, setEpLoading] = useState(false)
+
   const loadEpisodes = async () => {
-  const { data } = await supabase.from('episodes').select('*').order('anime_id').order('episode_num')
-  setEpisodes(data || [])
-  const [tab, setTab] = useState('Users')
-}
+    const { data } = await supabase.from('episodes').select('*').order('anime_id').order('episode_num')
+    setEpisodes(data || [])
+  }
 
   useEffect(() => {
     if (loading) return
@@ -62,6 +64,7 @@ export default function AdminPage() {
       load()
       loadAnns()
       loadNews()
+      loadEpisodes()
     }
   }, [loading, user, profile])
 
@@ -114,6 +117,31 @@ export default function AdminPage() {
     } catch (e) { toast.error(e.message) }
   }
 
+  const addEpisode = async () => {
+    if (!epForm.anime_id || !epForm.episode_num || !epForm.embed_url) {
+      toast.error('Anime ID, Episode Number, aur Embed URL required hai')
+      return
+    }
+    setEpLoading(true)
+    const { error } = await supabase.from('episodes').upsert({
+      anime_id: epForm.anime_id,
+      episode_num: parseInt(epForm.episode_num),
+      title: epForm.title,
+      embed_url: epForm.embed_url,
+      language: epForm.language,
+      quality: epForm.quality,
+    })
+    if (error) toast.error(error.message)
+    else { toast.success('Episode saved!'); loadEpisodes() }
+    setEpLoading(false)
+  }
+
+  const deleteEpisode = async (id) => {
+    await supabase.from('episodes').delete().eq('id', id)
+    toast.success('Deleted')
+    loadEpisodes()
+  }
+
   const filtered = users.filter(u =>
     u.email?.toLowerCase().includes(search.toLowerCase()) ||
     u.display_name?.toLowerCase().includes(search.toLowerCase())
@@ -137,30 +165,6 @@ export default function AdminPage() {
       </div>
     )
   }
-  const addEpisode = async () => {
-  if (!epForm.anime_id || !epForm.episode_num || !epForm.embed_url) {
-    toast.error('Anime ID, Episode Number, aur Embed URL required hai')
-    return
-  }
-  setEpLoading(true)
-  const { error } = await supabase.from('episodes').upsert({
-    anime_id: epForm.anime_id,
-    episode_num: parseInt(epForm.episode_num),
-    title: epForm.title,
-    embed_url: epForm.embed_url,
-    language: epForm.language,
-    quality: epForm.quality,
-  })
-  if (error) toast.error(error.message)
-  else { toast.success('Episode saved!'); loadEpisodes() }
-  setEpLoading(false)
-}
-
-const deleteEpisode = async (id) => {
-  await supabase.from('episodes').delete().eq('id', id)
-  toast.success('Deleted')
-  loadEpisodes()
-}
 
   return (
     <div className="min-h-screen bg-shim-bg">
@@ -330,112 +334,76 @@ const deleteEpisode = async (id) => {
             </div>
           </div>
         )}
+
+        {tab === 'Episodes' && (
+          <div className="space-y-6">
+            <div className="glass rounded-2xl border border-shim-border p-6">
+              <h3 className="text-base font-semibold text-shim-text mb-4">Add / Update Episode</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                <input placeholder="Anime MAL ID (e.g. 21)" value={epForm.anime_id}
+                  onChange={e => setEpForm(p => ({...p, anime_id: e.target.value}))} className="input-base" />
+                <input placeholder="Episode Number (e.g. 1)" type="number" value={epForm.episode_num}
+                  onChange={e => setEpForm(p => ({...p, episode_num: e.target.value}))} className="input-base" />
+                <input placeholder="Episode Title (optional)" value={epForm.title}
+                  onChange={e => setEpForm(p => ({...p, title: e.target.value}))} className="input-base" />
+                <input placeholder="Embed URL (e.g. https://voe.sx/e/xxxxx)" value={epForm.embed_url}
+                  onChange={e => setEpForm(p => ({...p, embed_url: e.target.value}))} className="input-base" />
+                <select value={epForm.language} onChange={e => setEpForm(p => ({...p, language: e.target.value}))} className="input-base">
+                  <option value="sub">SUB</option>
+                  <option value="dub">DUB</option>
+                  <option value="hindi">HINDI</option>
+                </select>
+                <select value={epForm.quality} onChange={e => setEpForm(p => ({...p, quality: e.target.value}))} className="input-base">
+                  <option value="HD">HD</option>
+                  <option value="FHD">1080p</option>
+                  <option value="SD">SD</option>
+                </select>
+              </div>
+              <button onClick={addEpisode} disabled={epLoading} className="btn-primary">
+                {epLoading ? 'Saving...' : 'Save Episode'}
+              </button>
+            </div>
+
+            <div className="glass rounded-2xl border border-shim-border overflow-hidden">
+              <div className="px-4 py-3 border-b border-shim-border flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-shim-text">All Episodes ({episodes.length})</h3>
+                <button onClick={loadEpisodes} className="text-xs text-shim-muted hover:text-shim-text">↻ Refresh</button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-shim-border">
+                      <th className="text-left px-4 py-2 text-shim-muted font-medium">Anime ID</th>
+                      <th className="text-left px-4 py-2 text-shim-muted font-medium">Ep</th>
+                      <th className="text-left px-4 py-2 text-shim-muted font-medium">Title</th>
+                      <th className="text-left px-4 py-2 text-shim-muted font-medium">Lang</th>
+                      <th className="text-left px-4 py-2 text-shim-muted font-medium">Quality</th>
+                      <th className="text-left px-4 py-2 text-shim-muted font-medium">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {episodes.length === 0 && (
+                      <tr><td colSpan={6} className="px-4 py-8 text-center text-shim-muted text-sm">No episodes added yet</td></tr>
+                    )}
+                    {episodes.map(ep => (
+                      <tr key={ep.id} className="border-b border-shim-border/50 hover:bg-white/5">
+                        <td className="px-4 py-2 text-shim-textD">{ep.anime_id}</td>
+                        <td className="px-4 py-2 text-shim-textD">{ep.episode_num}</td>
+                        <td className="px-4 py-2 text-shim-textD max-w-[150px] truncate">{ep.title || '-'}</td>
+                        <td className="px-4 py-2"><span className="genre-tag">{ep.language}</span></td>
+                        <td className="px-4 py-2 text-shim-textD">{ep.quality}</td>
+                        <td className="px-4 py-2">
+                          <button onClick={() => deleteEpisode(ep.id)} className="text-red-400 hover:text-red-300 text-xs">Delete</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   )
 }
-// Tabs array mein add karo
-'Episodes'
-{tab === 'Episodes' && (
-  <div className="space-y-6">
-    {/* Add form */}
-    <div className="glass rounded-2xl border border-shim-border p-6">
-      <h3 className="text-base font-semibold text-shim-text mb-4">Add / Update Episode</h3>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-        <input
-          placeholder="Anime MAL ID (e.g. 21)"
-          value={epForm.anime_id}
-          onChange={e => setEpForm(p => ({...p, anime_id: e.target.value}))}
-          className="input-field"
-        />
-        <input
-          placeholder="Episode Number (e.g. 1)"
-          type="number"
-          value={epForm.episode_num}
-          onChange={e => setEpForm(p => ({...p, episode_num: e.target.value}))}
-          className="input-field"
-        />
-        <input
-          placeholder="Episode Title (optional)"
-          value={epForm.title}
-          onChange={e => setEpForm(p => ({...p, title: e.target.value}))}
-          className="input-field"
-        />
-        <input
-          placeholder="Embed URL (e.g. https://voe.sx/e/xxxxx)"
-          value={epForm.embed_url}
-          onChange={e => setEpForm(p => ({...p, embed_url: e.target.value}))}
-          className="input-field"
-        />
-        <select
-          value={epForm.language}
-          onChange={e => setEpForm(p => ({...p, language: e.target.value}))}
-          className="input-field"
-        >
-          <option value="sub">SUB</option>
-          <option value="dub">DUB</option>
-          <option value="hindi">HINDI</option>
-        </select>
-        <select
-          value={epForm.quality}
-          onChange={e => setEpForm(p => ({...p, quality: e.target.value}))}
-          className="input-field"
-        >
-          <option value="HD">HD</option>
-          <option value="FHD">1080p</option>
-          <option value="SD">SD</option>
-        </select>
-      </div>
-      <input
-        placeholder="Full Embed URL"
-        value={epForm.embed_url}
-        onChange={e => setEpForm(p => ({...p, embed_url: e.target.value}))}
-        className="input-field w-full mb-3"
-      />
-      <button onClick={addEpisode} disabled={epLoading}
-        className="btn-primary">
-        {epLoading ? 'Saving...' : 'Save Episode'}
-      </button>
-    </div>
-
-    {/* Episodes list */}
-    <div className="glass rounded-2xl border border-shim-border overflow-hidden">
-      <div className="px-4 py-3 border-b border-shim-border">
-        <h3 className="text-sm font-semibold text-shim-text">All Episodes ({episodes.length})</h3>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-shim-border">
-              <th className="text-left px-4 py-2 text-shim-muted font-medium">Anime ID</th>
-              <th className="text-left px-4 py-2 text-shim-muted font-medium">Ep</th>
-              <th className="text-left px-4 py-2 text-shim-muted font-medium">Title</th>
-              <th className="text-left px-4 py-2 text-shim-muted font-medium">Lang</th>
-              <th className="text-left px-4 py-2 text-shim-muted font-medium">Quality</th>
-              <th className="text-left px-4 py-2 text-shim-muted font-medium">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {episodes.map(ep => (
-              <tr key={ep.id} className="border-b border-shim-border/50 hover:bg-white/5">
-                <td className="px-4 py-2 text-shim-textD">{ep.anime_id}</td>
-                <td className="px-4 py-2 text-shim-textD">{ep.episode_num}</td>
-                <td className="px-4 py-2 text-shim-textD clamp1 max-w-[150px]">{ep.title || '-'}</td>
-                <td className="px-4 py-2">
-                  <span className="genre-tag">{ep.language}</span>
-                </td>
-                <td className="px-4 py-2 text-shim-textD">{ep.quality}</td>
-                <td className="px-4 py-2">
-                  <button onClick={() => deleteEpisode(ep.id)}
-                    className="text-red-400 hover:text-red-300 text-xs">
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-)}
