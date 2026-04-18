@@ -349,9 +349,12 @@ export default function AdminPage() {
                 <input placeholder="Embed URL (e.g. https://voe.sx/e/xxxxx)" value={epForm.embed_url}
                   onChange={e => setEpForm(p => ({...p, embed_url: e.target.value}))} className="input-base" />
                 <select value={epForm.language} onChange={e => setEpForm(p => ({...p, language: e.target.value}))} className="input-base">
-                  <option value="sub">SUB</option>
-                  <option value="dub">DUB</option>
+                  <option value="sub">SUB (Japanese)</option>
+                  <option value="dub">DUB (English)</option>
                   <option value="hindi">HINDI</option>
+                  <option value="tamil">TAMIL</option>
+                  <option value="telugu">TELUGU</option>
+                  <option value="japanese">JAPANESE RAW</option>
                 </select>
                 <select value={epForm.quality} onChange={e => setEpForm(p => ({...p, quality: e.target.value}))} className="input-base">
                   <option value="HD">HD</option>

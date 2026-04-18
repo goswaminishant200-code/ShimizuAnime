@@ -76,7 +76,7 @@ export default function WatchPage() {
                   {title} <span className="text-shim-primary">— Ep {ep}</span>
                 </h1>
                 <div className="flex rounded-xl overflow-hidden border border-shim-border">
-                  {['sub','dub','hindi'].map(m => {
+                  {['sub','dub','hindi','tamil','telugu','japanese'].map(m => {
                     const available = availableLangs.includes(m)
                     return (
                       <button key={m} onClick={() => available && setMode(m)}
@@ -84,7 +84,13 @@ export default function WatchPage() {
                           ${mode === m ? 'bg-shim-primary text-white' : ''}
                           ${!available ? 'opacity-30 cursor-not-allowed' : 'hover:text-shim-text'}
                           ${mode !== m && available ? 'bg-shim-card text-shim-textD' : ''}`}>
-                        {m === 'sub' ? '🇯🇵 SUB' : m === 'dub' ? '🇺🇸 DUB' : '🇮🇳 HIN'}
+                        {m === 'sub' ? '🇯🇵 SUB' 
+                        : m === 'dub' ? '🇺🇸 DUB' 
+                        : m === 'hindi' ? '🇮🇳 HIN'
+                        : m === 'tamil' ? '🇮🇳 TAM'
+                        : m === 'telugu' ? '🇮🇳 TEL'
+                        : m === 'japanese' ? '🎌 JPN'
+                        : m.toUpperCase()}
                       </button>
                     )
                   })}
