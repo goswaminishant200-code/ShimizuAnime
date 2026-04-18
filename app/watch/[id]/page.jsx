@@ -100,7 +100,7 @@ export default function WatchPage() {
               </div>
 
               {/* Video player */}
-              <div className="relative aspect-video bg-black rounded-2xl border border-shim-border shadow-2xl" style={{overflow: 'clip'}}>
+              <div className="relative aspect-video bg-black rounded-2xl overflow-hidden border border-shim-border shadow-2xl">
                 {loading ? (
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="w-10 h-10 border-2 border-shim-primary border-t-transparent rounded-full animate-spin" />
@@ -118,11 +118,11 @@ export default function WatchPage() {
                    <iframe
                      key={`${id}-${ep}-${lang}`}
                      src={embedUrl}
-                     className="w-full h-full"
-                     allowFullScreen={true}
-                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; web-share"
+                     width="100%"
+                     height="100%"
+                     allowFullScreen
+                     allow="fullscreen"
                      frameBorder="0"
-                     title={`${title} Episode ${ep}`}
                    />
                 ) : (
                   
