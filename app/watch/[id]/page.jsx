@@ -60,7 +60,7 @@ export default function WatchPage() {
   const epInt    = parseInt(ep)
   const isLocked = !isPremium && epInt > 3
 
-  const iframeSrc = SERVERS[server].getUrl(id, ep, mode)
+  const iframeSrc = "https://voe.sx/e/pobhnawfze2s"
 
   return (
     <div className="min-h-screen bg-shim-bg">
