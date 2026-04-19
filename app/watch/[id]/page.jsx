@@ -131,7 +131,7 @@ export default function WatchPage() {
           <div className="text-center p-8">
             <div className="text-4xl mb-3">🎬</div>
             <p className="text-shim-textD font-medium mb-1">Episode not available yet</p>
-            <p className="text-shim-muted text-sm">Admin ne abhi link add nahi kiya.</p>
+            <p className="text-shim-muted text-sm">Please Request To Admin To Add This Episode.</p>
           </div>
         </div>
       )}
